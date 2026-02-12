@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Automation - Управление сессиями</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .form-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group input[type="number"] {
+            font-size: 1.1em;
+        }
+
+        .session-counter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .session-counter input {
+            flex: 1;
+        }
+
+        .session-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .session-btn:hover {
+            background: #5568d3;
+        }
+
+        .session-btn-minus {
+            background: #ff6b6b;
+        }
+
+        .session-btn-minus:hover {
+            background: #ff5252;
+        }
+
+        .add-task-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .add-task-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .add-task-btn:active {
+            transform: translateY(0);
+        }
+
+        .tasks-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .tasks-panel h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .task-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .task-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.15);
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .task-id {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 0.9em;
+        }
+
+        .task-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-completed {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .task-prompt {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 0.95em;
+            color: #555;
+            border-left: 4px solid #667eea;
+        }
+
+        .task-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .stat {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .stat-label {
+            color: #999;
+            font-size: 0.8em;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.3em;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .task-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-start:hover {
+            background: #218838;
+        }
+
+        .btn-start:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #c82333;
+        }
+
+        .btn-stop:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(500px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .notification.error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .notification.info {
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Gemini Automation</h1>
+            <p>Управление массовыми сессиями с анти-бан механизмами</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Form Panel -->
+            <div class="form-panel">
+                <h2 style="margin-bottom: 25px; color: #333;">Создать новую задачу</h2>
+
+                <div class="form-group">
+                    <label for="prompt">Задача (текст для AI):</label>
+                    <textarea id="prompt" placeholder="Введите текст, который нужно отправить в Gemini..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Количество сессий:</label>
+                    <div class="session-counter">
+                        <button class="session-btn session-btn-minus" onclick="decrementSessions()">−</button>
+                        <input type="number" id="sessions" value="5" min="1" max="10000">
+                        <button class="session-btn" onclick="incrementSessions()">+</button>
+                    </div>
+                    <small style="color: #999; margin-top: 8px; display: block;">
+                        Текущее значение: <strong id="sessionsDisplay">5</strong> сессий
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label style="font-size: 0.9em; color: #999;">
+                        <input type="checkbox" id="autoRestart" checked>
+                        Автоматически перезапускать сессии при завершении (Restart)
+                    </label>
+                </div>
+
+                <button class="add-task-btn" onclick="createTask()">
+                    + Добавить задачу
+                </button>
+            </div>
+
+            <!-- Tasks Panel -->
+            <div class="tasks-panel">
+                <h2>Активные задачи</h2>
+                <div id="tasksList"></div>
+                <div id="emptyState" class="empty-state">
+                    <p>📋 Задач нет</p>
+                    <p style="font-size: 0.9em;">Создайте первую задачу в левой панели</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tasks = {};
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'task_created') {
+                tasks[data.task.id] = data.task;
+                renderTasks();
+                showNotification(`Задача создана: ${data.task.id}`, 'info');
+            } else if (data.type === 'task_started') {
+                tasks[data.task.id] = data.task;
+                renderTasks();
+                showNotification('Задача запущена', 'success');
+            } else if (data.type === 'task_stopped') {
+                tasks[data.task.id] = data.task;
+                renderTasks();
+                showNotification('Задача остановлена', 'info');
+            } else if (data.type === 'task_update') {
+                tasks[data.task.id] = data.task;
+                renderTasks();
+            }
+        };
+
+        // Получаем задачи при загрузке
+        async function loadTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                const data = await response.json();
+                tasks = {};
+                data.tasks.forEach(task => {
+                    tasks[task.id] = task;
+                });
+                renderTasks();
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+            }
+        }
+
+        function incrementSessions() {
+            const input = document.getElementById('sessions');
+            input.value = Math.min(10000, parseInt(input.value) + 5);
+            document.getElementById('sessionsDisplay').textContent = input.value;
+        }
+
+        function decrementSessions() {
+            const input = document.getElementById('sessions');
+            input.value = Math.max(1, parseInt(input.value) - 5);
+            document.getElementById('sessionsDisplay').textContent = input.value;
+        }
+
+        document.getElementById('sessions').addEventListener('change', (e) => {
+            document.getElementById('sessionsDisplay').textContent = e.target.value;
+        });
+
+        async function createTask() {
+            const prompt = document.getElementById('prompt').value.trim();
+            const sessions = parseInt(document.getElementById('sessions').value);
+
+            if (!prompt) {
+                showNotification('⚠️ Введите текст задачи', 'error');
+                return;
+            }
+
+            if (sessions < 1) {
+                showNotification('⚠️ Укажите хотя бы 1 сессию', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, sessions })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('prompt').value = '';
+                    document.getElementById('sessions').value = 5;
+                    document.getElementById('sessionsDisplay').textContent = '5';
+                    loadTasks();
+                } else {
+                    showNotification('❌ Ошибка при создании задачи', 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Ошибка подключения', 'error');
+                console.error(error);
+            }
+        }
+
+        async function startTask(taskId) {
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/start`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    loadTasks();
+                } else {
+                    showNotification('❌ Ошибка при запуске задачи', 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Ошибка подключения', 'error');
+                console.error(error);
+            }
+        }
+
+        async function stopTask(taskId) {
+            if (confirm('Вы уверены? Остановятся все активные сессии.')) {
+                try {
+                    const response = await fetch(`/api/tasks/${taskId}/stop`, {
+                        method: 'POST'
+                    });
+
+                    if (response.ok) {
+                        loadTasks();
+                    } else {
+                        showNotification('❌ Ошибка при остановке задачи', 'error');
+                    }
+                } catch (error) {
+                    showNotification('❌ Ошибка подключения', 'error');
+                    console.error(error);
+                }
+            }
+        }
+
+        function renderTasks() {
+            const tasksList = document.getElementById('tasksList');
+            const emptyState = document.getElementById('emptyState');
+            const taskArray = Object.values(tasks);
+
+            if (taskArray.length === 0) {
+                tasksList.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            tasksList.innerHTML = taskArray.map(task => {
+                const progress = task.session_count > 0 
+                    ? (task.completed_sessions / task.session_count) * 100 
+                    : 0;
+                
+                const canStart = task.status === 'pending';
+                const canStop = task.status === 'running';
+
+                return `
+                    <div class="task-card">
+                        <div class="task-header">
+                            <div class="task-id">#${task.id.substring(5, 15)}</div>
+                            <span class="task-status status-${task.status}">
+                                ${getStatusLabel(task.status)}
+                            </span>
+                        </div>
+                        
+                        <div class="task-prompt">
+                            "${task.prompt.substring(0, 100)}${task.prompt.length > 100 ? '...' : ''}"
+                        </div>
+
+                        <div class="task-stats">
+                            <div class="stat">
+                                <div class="stat-label">Всего сессий</div>
+                                <div class="stat-value">${task.session_count}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Активных</div>
+                                <div class="stat-value">${task.active_sessions}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Завершено</div>
+                                <div class="stat-value">${task.completed_sessions}</div>
+                            </div>
+                        </div>
+
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+
+                        <div class="task-actions" style="margin-top: 15px;">
+                            <button 
+                                class="task-btn btn-start" 
+                                onclick="startTask('${task.id}')"
+                                ${!canStart ? 'disabled' : ''}
+                            >
+                                &#x25B6; Запустить
+                            </button>
+                            <button 
+                                class="task-btn btn-stop" 
+                                onclick="stopTask('${task.id}')"
+                                ${!canStop ? 'disabled' : ''}
+                            >
+                                ⏹ Остановить
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getStatusLabel(status) {
+            const labels = {
+                'pending': '⏳ Ожидание',
+                'running': '▶ Выполняется',
+                'stopped': '⏹ Остановлено',
+                'completed': '✓ Завершено'
+            };
+            return labels[status] || status;
+        }
+
+        function showNotification(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `notification ${type}`;
+            div.textContent = message;
+            document.body.appendChild(div);
+
+            setTimeout(() => {
+                div.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => div.remove(), 300);
+            }, 3000);
+        }
+
+        // Обновляем статус задач каждые 2 секунды
+        setInterval(loadTasks, 2000);
+
+        // Загружаем задачи при загрузке страницы
+        loadTasks();
+
+        // Allow Enter для отправки задачи
+        document.getElementById('prompt').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                createTask();
+            }
+        });
+    </script>
+</body>
+</html>

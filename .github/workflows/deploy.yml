@@ -1,0 +1,254 @@
+name: 🚀 Gemini Automation Deploy & Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_count:
+        description: 'Количество сессий'
+        required: false
+        default: '5'
+      task_prompt:
+        description: 'Текст для ввода'
+        required: false
+        default: 'Сколько стоит акция NVIDIA?'
+
+jobs:
+  run-automation:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.40.0-jammy
+    
+    steps:
+      - name: 📥 Checkout код
+        uses: actions/checkout@v4
+
+      - name: 🐍 Установка Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Установка зависимостей
+        run: |
+          pip install --upgrade pip
+          pip install fastapi uvicorn playwright pydantic pydantic-settings
+          playwright install chromium
+
+      - name: 🎯 Запуск Gemini Automation
+        run: |
+          python -c "
+import asyncio
+import json
+from datetime import datetime
+from gemini_automation_extended import GeminiAutomationManager, Task
+import uuid
+
+async def main():
+    print('🚀 Запуск Gemini Automation на GitHub Actions')
+    print('=' * 80)
+    
+    manager = GeminiAutomationManager()
+    await manager.init_browser()
+    
+    try:
+        # Создаем задачу
+        task_id = str(uuid.uuid4())[:8]
+        session_count = int('${{ github.event.inputs.session_count }}') or 5
+        task_prompt = '''${{ github.event.inputs.task_prompt }}''' or 'Сколько стоит акция NVIDIA?'
+        
+        print(f'📋 Создание задачи:')
+        print(f'  Task ID: {task_id}')
+        print(f'  Sessions: {session_count}')
+        print(f'  Prompt: {task_prompt}')
+        print('=' * 80)
+        
+        task = Task(
+            id=task_id,
+            prompt=task_prompt,
+            session_count=session_count
+        )
+        
+        manager.tasks[task_id] = task
+        
+        # Запускаем задачу
+        await manager.run_task(task)
+        
+        # Ждем, пока все завершится
+        print(f'⏳ Ожидание завершения...')
+        while task.active_sessions > 0:
+            await asyncio.sleep(5)
+            print(f'  Active: {task.active_sessions}, Completed: {task.completed_sessions}, Failed: {task.failed_sessions}')
+        
+        # Финальное сохранение
+        task.save_to_file()
+        
+        print('=' * 80)
+        print(f'✅ Задача завершена!')
+        print(f'  Total Sessions: {session_count}')
+        print(f'  Completed: {task.completed_sessions}')
+        print(f'  Failed: {task.failed_sessions}')
+        print(f'  Results saved to: results/{task_id}/')
+        
+    finally:
+        await manager.close_browser()
+
+asyncio.run(main())
+"
+
+      - name: 📸 Архивирование результатов
+        if: always()
+        run: |
+          if [ -d "results" ]; then
+            echo "📦 Архивирование файлов результатов..."
+            tar -czf results.tar.gz results/ || true
+            ls -lah results/ || echo "Папка results не найдена"
+          else
+            echo "⚠️ Папка results не найдена"
+          fi
+
+      - name: 📤 Загрузка artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gemini-results
+          path: |
+            results/
+            gemini_automation.log
+            results.tar.gz
+          retention-days: 7
+
+      - name: 📊 Вывод результатов
+        if: always()
+        run: |
+          echo "🎉 РЕЗУЛЬТАТЫ ЗАПУСКА"
+          echo "===================="
+          
+          if [ -f "gemini_automation.log" ]; then
+            echo ""
+            echo "📋 Логи работы:"
+            echo "===================="
+            tail -100 gemini_automation.log
+          fi
+          
+          if [ -d "results" ]; then
+            echo ""
+            echo "📂 Структура результатов:"
+            echo "===================="
+            find results -type f -name "*.txt" -o -name "*.json" -o -name "*.png" | head -20
+            
+            echo ""
+            echo "📝 Примеры логов сессий:"
+            echo "===================="
+            find results -name "00_session_logs.txt" -print0 | head -3 | xargs -0 head -30 2>/dev/null || echo "Логи не найдены"
+          fi
+
+      - name: 🔔 Создание Summary
+        if: always()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🎉 Gemini Automation - GitHub Actions Run
+          
+          ## Run Details
+          - **Timestamp**: $(date)
+          - **Session Count**: ${{ github.event.inputs.session_count || 5 }}
+          - **Prompt**: "${{ github.event.inputs.task_prompt }}"
+          
+          ## 📁 Artifacts
+          Все результаты сохранены в **Artifacts**:
+          - 📸 Скриншоты каждого шага
+          - 📋 Логи сессий (текстовый формат)
+          - 📄 HTML содержимое страниц
+          - 📊 JSON результаты
+          - 📑 gemini_automation.log
+          
+          ## 🔍 Как просмотреть результаты
+          
+          1. Перейдите на вкладку **Artifacts** этого запуска
+          2. Скачайте `gemini-results` архив
+          3. Распакуйте и откройте:
+             - `results/<task-id>/screenshots/<session-id>/` - скриншоты
+             - `results/<task-id>/screenshots/<session-id>/00_session_logs.txt` - логи
+             - `gemini_automation.log` - полные логи
+          
+          ## 📊 Структура результатов
+          ```
+          results/
+          ├── <task-id>/
+          │   ├── <task-id>_results.json    (итоговые результаты)
+          │   └── screenshots/
+          │       ├── <session-1>/
+          │       │   ├── 00_session_logs.txt
+          │       │   ├── 01_page_loaded.png
+          │       │   ├── 02_text_entered.png
+          │       │   └── page_content.html
+          │       ├── <session-2>/
+          │       └── ...
+          gemini_automation.log            (полные логи)
+          ```
+          EOF
+
+  publish-results:
+    runs-on: ubuntu-latest
+    needs: run-automation
+    if: always()
+    
+    steps:
+      - name: 📥 Checkout код для push
+        uses: actions/checkout@v4
+
+      - name: 📥 Скачивание artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: gemini-results
+          path: ./artifacts
+
+      - name: 📝 Коммит результатов
+        continue-on-error: true
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          if [ -d "artifacts/results" ]; then
+            rm -rf results || true
+            mv artifacts/results . || true
+          fi
+          
+          if [ -f "artifacts/gemini_automation.log" ]; then
+            cp artifacts/gemini_automation.log . || true
+          fi
+          
+          git add -A results/ gemini_automation.log 2>/dev/null || true
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "🤖 Auto: Gemini automation results from GitHub Actions [$(date +'%Y-%m-%d %H:%M:%S')]"
+            git push origin master || echo "Push skipped"
+          else
+            echo "No changes to commit"
+          fi
+
+  upload-summary:
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 📊 Вывод финального резюме
+        run: |
+          cat << 'EOF'
+          
+          ╔══════════════════════════════════════════════════════════╗
+          ║  ✅ GEMINI AUTOMATION - GITHUB ACTIONS COMPLETE          ║
+          ╠══════════════════════════════════════════════════════════╣
+          ║                                                          ║
+          ║  📸 Результаты и логи сохранены в Artifacts            ║
+          ║  📋 Полные логи в: gemini_automation.log                ║
+          ║  📁 Скриншоты в: results/<task-id>/screenshots/         ║
+          ║  📊 JSON результаты: results/<task-id>_results.json     ║
+          ║                                                          ║
+          ║  🔗 Скачайте artifacts для полного просмотра            ║
+          ║  📖 Документация: https://github.com/.../blob/master/   ║
+          ║                                                          ║
+          ║  Workflow: https://github.com/${{ github.repository }}/  ║
+          ║            actions/runs/${{ github.run_id }}             ║
+          ║                                                          ║
+          ╚══════════════════════════════════════════════════════════╝
+          
+          EOF
